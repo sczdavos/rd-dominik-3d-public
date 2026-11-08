@@ -14,7 +14,7 @@
 // the JSON — nothing is re-measured from the PDFs.
 
 import * as THREE from 'three';
-import { M, CONST, boxFromRect, prismFromPoly, rectilinearPrism, rectPoly, bboxOf, polyBBox, rectHitsPoly, pointInPoly } from './prims.js';
+import { M, CONST, boxFromRect, prismFromPoly, rectilinearPrism, rectPoly, bboxOf, polyBBox, rectHitsPoly, pointInPoly, rectsOverlap } from './prims.js';
 import { mats } from './materials.js';
 import { buildWall, wallFrame } from './openings.js';
 import { lamellaWall, pergola, railing, greenRoof, chimney, roofSlab } from './details.js';
@@ -61,7 +61,7 @@ export function buildHouse(m) {
     }
     const wallsHere = stairP ? clipUnderStair(L.walls, sfx.rect, stairP, zf, L) : L.walls;
     for (const w of wallsHere) {
-      const ops = L.openings.filter(o => o.wall === w.id);
+      const ops = L.openings.filter(o => w.base ? o.wall === w.base && rectsOverlap(o.rect, w.rect) : o.wall === w.id); // a wall split under the stair keeps the openings of its own stretch (d_prac on sn1_prac was lost: owner 2026-11-08)
       const z0 = w.z0 ?? zf, z1 = w.z1 ?? zf + (L.height || 2900);
       const mesh = w.kind === 'lamely' ? lamellaWall(w, z0 <= 0 ? CONST.TERRACE_Z : z0, z1, masses) : buildWall(w, ops, zf, L, floorRaise, masses);
       mesh.userData.level = lk;
@@ -197,7 +197,7 @@ function clipUnderStair(walls, fr, plan, zf, L) {
     if (!over.length) { out.push(w); continue; }
     const zTop = zf + Math.min(...over.map(t => t.z)) - STAIR.TREAD_T - (CONST.STAIR_LEDS ? 200 : 5); // up to the lowest tread above it (200 lower where LED strips glow under the noses)
     const horiz = r[2] - r[0] >= r[3] - r[1], a0 = horiz ? r[0] : r[1], a1 = horiz ? r[2] : r[3], c0 = horiz ? ix0 : iy0, c1 = horiz ? ix1 : iy1;
-    const part = (s0, s1, extra) => ({ ...w, ...extra, rect: horiz ? [s0, r[1], s1, r[3]] : [r[0], s0, r[2], s1] });
+    const part = (s0, s1, extra) => ({ ...w, ...extra, base: w.id, rect: horiz ? [s0, r[1], s1, r[3]] : [r[0], s0, r[2], s1] }); // base: the model wall id its openings refer to
     if (c0 > a0) out.push(part(a0, c0, {}));
     out.push(part(c0, c1, { id: w.id + ':podschod', z1: Math.min(w.z1 ?? zf + (L.height || 2600), zTop) }));
     if (c1 < a1) out.push(part(c1, a1, { id: w.id + ':za' }));

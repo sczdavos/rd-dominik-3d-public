@@ -252,7 +252,7 @@ function gymRack(g, w, d, h) {
 }
 function appliance(g, w, d, h, it) {
   if (h >= 1500) { bx(g, w, h, d, 0, h / 2, 0, F.steel); bx(g, w - 40, 3, 4, 0, h * 0.62, -d / 2 - 2, F.black); bx(g, 20, h * 0.3, 20, w / 2 - 60, h * 0.45, -d / 2 - 12, F.chrome); } // fridge
-  else { bx(g, w, h - 60, d, 0, (h - 60) / 2, 0, F.white); bx(g, w - 40, 12, d - 40, 0, h - 6, 0, F.black); for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) cyl(g, 90, 6, sx * w * 0.22, h + 3, sy * d * 0.22, F.grey, 20); } // hob + oven
+  else { bx(g, w, h - 60, d, 0, (h - 60) / 2, 0, F.white); bx(g, w - 40, 12, d - 40, 0, h - 3, 0, F.black); for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) cyl(g, 90, 2, sx * w * 0.22, h + 4, sy * d * 0.22, F.grey, 20); } // hob + oven: glass 3 mm above the worktop it sits in, zones 2 mm on the glass (no coplanar faces → no flicker)
 }
 function plainBox(g, w, d, h) { bx(g, w, h, d, 0, h / 2, 0, F.grey); }
 function monitorCurved(g, w, d, h) { // wide curved screen: 7 segments on an arc, stand, keyboard in front
@@ -540,13 +540,16 @@ export function buildKitchen(L, zf) {
   const inKitchen = r => kitchenRooms.has(roomOf(r));
   const talls = furn.filter(f => ['appliance', 'fridge_us', 'fridge_builtin', 'tall_cabinet', 'oven_tower'].includes(f.type) && (f.h || 0) >= 1500 && inKitchen(f.rect));
   const hoods = furn.filter(f => f.type === 'hood' && inKitchen(f.rect));
+  const unders = furn.filter(f => ['dishwasher', 'wine_cooler'].includes(f.type) && (f.h || 0) <= WORKTOP && inKitchen(f.rect));
   const sinkF = L.fixtures.find(f => /drez/.test(f.id) && f.rect);
   // base cabinets + worktop per run, minus tall appliances
   for (const run of runs) {
     const cut = talls.filter(a => rectsOverlap(a.rect, run.rect)).map(a => a.rect);
+    const under = unders.filter(a => rectsOverlap(a.rect, run.rect)).map(a => a.rect); // under-counter appliances replace a cabinet, the worktop runs over them
     for (const c of splitRect(run.rect, cut)) {
       if (c[2] - c[0] < 60 || c[3] - c[1] < 60) continue;
-      g.add(boxFromRect(c, zf + 100, zf + WORKTOP - 40, F.white)); g.add(boxFromRect([c[0] + 40, c[1] + 40, c[2] - 40, c[3] - 40], zf, zf + 100, F.grey));
+      for (const b of splitRect(c, under)) { if (b[2] - b[0] < 60 || b[3] - b[1] < 60) continue;
+        g.add(boxFromRect(b, zf + 100, zf + WORKTOP - 40, F.white)); g.add(boxFromRect([b[0] + 40, b[1] + 40, b[2] - 40, b[3] - 40], zf, zf + 100, F.grey)); }
       g.add(boxFromRect(c, zf + WORKTOP - 40, zf + WORKTOP, F.oak));
     }
   }
