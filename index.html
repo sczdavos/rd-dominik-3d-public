@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>RD Vysoký Újezd — 3D</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#dfe5ea;font:13px/1.35 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;color:#1d232a}
+  #gl{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block}
+  #hud{position:fixed;left:10px;top:10px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+  #hud>*{pointer-events:auto}
+  .bar{display:flex;gap:4px;background:rgba(255,255,255,.85);backdrop-filter:blur(6px);border-radius:8px;padding:5px 6px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+  .bar b{align-self:center;margin-right:4px;color:#5a6470;font-weight:600}
+  button{border:1px solid #c9d0d8;background:#fff;border-radius:6px;padding:4px 9px;font:inherit;cursor:pointer}
+  button.on{background:#1d232a;color:#fff;border-color:#1d232a}
+  #sunbar{align-items:center}
+  #sunbar select{border:1px solid #c9d0d8;border-radius:6px;padding:3px 4px;font:inherit;background:#fff}
+  #sunbar input[type=range]{width:150px}
+  #sunout{color:#5a6470;font-size:12px;white-space:nowrap}
+  body.touch #sunbar input[type=range]{width:120px}
+  body.touch #sunout{white-space:normal;max-width:220px}
+  #msg{position:fixed;left:10px;bottom:10px;background:rgba(255,255,255,.85);border-radius:8px;padding:5px 9px;max-width:60vw;pointer-events:none} /* informational — taps go through to the canvas */
+  #mm{position:fixed;right:10px;bottom:10px;display:none;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.2)}
+  #walkhint{position:fixed;inset:0;display:none;place-items:center;pointer-events:none}
+  #walkhint.show{display:grid}
+  #walkhint.show.locked .card{opacity:0}
+  #walkhint .card{background:rgba(255,255,255,.9);padding:14px 20px;border-radius:10px;text-align:center;line-height:1.6;transition:opacity .3s}
+  #walkhint .card span{color:#5a6470;font-size:12px}
+  #walkhint.show.locked::after{content:"";position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+  #prompt{position:fixed;left:50%;top:56%;transform:translateX(-50%);display:none;background:rgba(29,35,42,.8);color:#fff;padding:5px 12px;border-radius:6px;font-size:13px;pointer-events:none}
+  #pick{position:fixed;inset:0;display:none;place-items:center;background:rgba(223,229,234,.95)}
+  #pick.show{display:grid}
+  #pick div{background:#fff;padding:22px 26px;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.15);max-width:420px}
+  /* furniture editor panel (Tab) */
+  #ed{position:fixed;right:10px;top:10px;width:272px;max-height:calc(100vh - 290px);overflow:auto;display:none;background:rgba(255,255,255,.93);backdrop-filter:blur(6px);border-radius:8px;padding:8px 10px;box-shadow:0 1px 6px rgba(0,0,0,.18);font-size:12px}
+  #ed h3{margin:0 0 4px;font-size:13px;display:flex;justify-content:space-between;align-items:center}
+  #ed h3 button{padding:2px 7px;font-size:11px}
+  #ed-hint{color:#5a6470;font-size:11px;line-height:1.4;margin-bottom:6px}
+  #ed .row{display:grid;grid-template-columns:58px 1fr 1fr;gap:4px 6px;align-items:center;margin:3px 0}
+  #ed .row.one{grid-template-columns:58px 1fr}
+  #ed .row label{color:#5a6470}
+  #ed input,#ed select{width:100%;box-sizing:border-box;border:1px solid #c9d0d8;border-radius:5px;padding:3px 5px;font:inherit;background:#fff}
+  #ed input[type=number]{text-align:right}
+  #ed .rotbtns{display:flex;gap:4px;white-space:nowrap}
+  #ed .rotbtns button{flex:1;padding:3px 4px;font-size:12px}
+  #ed .btns{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+  #ed .btns button{padding:3px 8px;font-size:12px}
+  #ed .btns button.danger{border-color:#d9534f;color:#b52b27}
+  #ed #ed-id{font-weight:600;margin:6px 0 2px;word-break:break-all}
+  #ed #ed-warn{color:#b52b27;font-size:11px;line-height:1.35}
+  #ed #ed-none{color:#5a6470;margin:6px 0}
+  #ed hr{border:0;border-top:1px solid #dde2e8;margin:8px 0}
+  #ed #ed-status{color:#5a6470;font-size:11px;line-height:1.35}
+  body.editing #walkhint .card{display:none}
+  body.editing #gl{cursor:default}
+  /* touch devices: no pointer lock — joystick (left half) + drag-look (right half); compact HUD behind ☰ */
+  #gl{touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  button,label{touch-action:manipulation}
+  #joy{position:fixed;display:none;width:112px;height:112px;margin:-56px 0 0 -56px;border-radius:50%;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.55);pointer-events:none;z-index:5}
+  #joy.run{border-color:rgba(255,200,80,.9)}
+  #joyknob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;background:rgba(255,255,255,.75);box-shadow:0 1px 4px rgba(0,0,0,.3)}
+  #tbar{display:none;position:fixed;right:max(10px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));gap:6px;z-index:6}
+  #tbar button{min-width:44px;height:38px;padding:0 10px;font-size:14px;background:rgba(255,255,255,.88);backdrop-filter:blur(6px);box-shadow:0 1px 4px rgba(0,0,0,.15)}
+  #tbar button.on{background:#1d232a;color:#fff}
+  body.touch #tbar{display:flex}
+  body.touch #hud{left:max(10px,env(safe-area-inset-left));top:max(10px,env(safe-area-inset-top))}
+  body.touch #hud .bar{display:none;flex-wrap:wrap;max-width:min(78vw,520px)}
+  body.touch #hud.open .bar{display:flex}
+  body.touch #hud .bar button{padding:5px 8px;font-size:12px}
+  body.touch #msg{left:max(10px,env(safe-area-inset-left));bottom:max(8px,env(safe-area-inset-bottom));font-size:11px;max-width:calc(100vw - 220px);padding:3px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.touch #mm{width:180px;height:150px;right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom))}
+  body.touch #walkhint .card{font-size:13px;padding:10px 14px;max-width:80vw}
+  body.touch #walkhint .card .kb{display:none}
+  body.touch.touched #walkhint .card{display:none}
+  body:not(.touch) #walkhint .card .tc{display:none}
+  body.touch #prompt{top:max(58px,calc(env(safe-area-inset-top) + 50px));bottom:auto}
+  body.touch #ed{left:0;right:0;top:auto;bottom:0;width:auto;max-height:46vh;border-radius:10px 10px 0 0;padding-bottom:max(8px,env(safe-area-inset-bottom))}
+  @media (orientation:landscape){body.touch #ed{max-height:40vh}}
+  body.touch #ed h3{cursor:pointer;-webkit-user-select:none;user-select:none}
+  body.touch #ed h3::before{content:"▾ ";color:#5a6470}
+  body.touch #ed.collapsed h3::before{content:"▴ "}
+  body.touch #ed.collapsed > :not(h3){display:none}
+  body.touch #ed .row{grid-template-columns:70px 1fr 1fr}
+  body.touch #ed input,body.touch #ed select{font-size:16px;padding:5px 6px} /* 16 px: iOS Safari does not zoom in */
+  body.touch.editing #mm{display:none!important}
+  #fps{position:fixed;left:50%;top:6px;transform:translateX(-50%);display:none;background:rgba(0,0,0,.55);color:#fff;font:11px monospace;padding:2px 6px;border-radius:4px;pointer-events:none}
+  body.showfps #fps{display:block}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hud">
+  <div class="bar"><b>Podlaží</b>
+    <button data-level="np1">1 NP</button><button data-level="np2">2 NP</button><button data-level="all" class="on">vše</button></div>
+  <div class="bar"><b>Režim</b><button data-mode="walk">Procházet</button><button data-mode="orbit" class="on">Orbit</button><button id="edit-btn" title="Tab">Upravit nábytek</button></div>
+  <div class="bar"><b>Zeleň</b><label><input type="checkbox" id="veg" checked> živý plot a stromy</label></div>
+  <div class="bar" id="sunbar"><b>Slunce</b><select id="season"><option value="80">21. 3.</option><option value="172" selected>21. 6.</option><option value="266">23. 9.</option><option value="355">21. 12.</option><option value="today">dnes</option></select><input type="range" id="tod" min="4" max="22" step="0.25" value="15" title="denní doba"><span id="sunout"></span></div>
+  <div class="bar"><b>Pohled</b>
+    <button data-view="top">shora</button><button data-view="garden">ze zahrady</button><button data-view="street">z ulice</button><button data-view="west">od jihu</button><button data-view="site">pozemek</button><button data-view="elevN" title="pohled západní – od ulice (DSP)">Z</button><button data-view="elevS" title="pohled východní – ze zahrady (DSP)">V</button><button data-view="elevE" title="pohled severní (DSP)">S</button><button data-view="elevW" title="pohled jižní (DSP)">J</button></div>
+</div>
+<div id="msg">Načítám model…</div>
+<canvas id="mm" width="300" height="250"></canvas>
+<div id="walkhint"><div class="card"><span class="kb"><b>Klikněte do obrazu</b> pro procházení<br><span>W A S D / šipky = chůze · Shift = rychleji · myš = rozhlížení<br>E = otevřít / zavřít dveře · M = mapa · 1 / 2 = přízemí / patro · Tab = úprava nábytku · Esc = uvolnit kurzor</span></span><span class="tc"><b>Levá polovina</b> = joystick (chůze, dál od středu = běh)<br><span>pravá polovina = tažením rozhlížení · ťuknutí na dveře = otevřít / zavřít<br>tlačítka vpravo nahoře: ☰ menu · 1 NP / 2 NP · mapa · ✎ nábytek</span></span></div></div>
+<div id="joy"><div id="joyknob"></div></div>
+<div id="tbar"><button id="tb-menu" title="menu">☰</button><button id="tb-mode">Procházet</button><button id="tb-np1" title="přízemí">1</button><button id="tb-np2" title="patro">2</button><button id="tb-map" title="mapa">▦</button><button id="tb-edit" title="úprava nábytku">✎</button><button id="tb-fs" title="celá obrazovka">⛶</button></div>
+<div id="fps"></div>
+<div id="prompt"></div>
+<div id="ed">
+  <h3>Úprava nábytku <button id="ed-close" title="Tab">zavřít</button></h3>
+  <div id="ed-hint"></div>
+  <div id="ed-none">Klikněte na kus nábytku.</div>
+  <div id="ed-item">
+    <div id="ed-id"></div>
+    <div class="row one"><label>název</label><input id="ed-name" type="text"></div>
+    <div class="row one"><label>typ</label><select id="ed-type"></select></div>
+    <div class="row"><label>střed x / y</label><input id="ed-x" type="number" step="10"><input id="ed-y" type="number" step="10"></div>
+    <div class="row"><label>šířka / hloubka</label><input id="ed-w" type="number" step="10" min="10"><input id="ed-d" type="number" step="10" min="10"></div>
+    <div class="row"><label>výška / z</label><input id="ed-h" type="number" step="10" min="1"><input id="ed-z" type="number" step="10" placeholder="0" title="spodek nad podlahou (věci na nábytku)"></div>
+    <div class="row"><label>otočení °</label><input id="ed-rot" type="number" step="15"><span class="rotbtns"><button id="ed-rot-l" title="Shift+R">↶ 15°</button><button id="ed-rot-r" title="R">↷ 15°</button></span></div>
+    <div class="row one"><label>zády k</label><select id="ed-back"><option value="">auto</option><option value="N">N — sever</option><option value="S">S — jih</option><option value="E">E — východ</option><option value="W">W — západ</option></select></div>
+    <div id="ed-warn"></div>
+    <div class="btns"><button id="ed-dup" title="Ctrl+D">Kopírovat</button><button id="ed-del" class="danger" title="Del">Smazat</button></div>
+  </div>
+  <hr>
+  <div class="row one"><label>přidat</label><select id="ed-addtype"></select></div>
+  <div class="btns"><button id="ed-add">Přidat před sebe</button><button id="ed-undo" title="Ctrl+Z">Zpět</button><button id="ed-redo" title="Ctrl+Shift+Z">Znovu</button></div>
+  <hr>
+  <div class="btns"><button id="ed-export">Export JSON</button><button id="ed-import" title="načte nábytek z jiného souboru modelu — jen do prohlížeče">Import JSON</button><button id="ed-reset" class="danger">Zahodit úpravy</button></div>
+  <input type="file" id="ed-importfile" accept=".json,application/json" hidden>
+  <div id="ed-status"></div>
+</div>
+<div id="pick"><div>
+  <p><b>Model se nepodařilo načíst přes fetch</b> (pravděpodobně otevřeno jako <code>file://</code>).</p>
+  <p>Vyberte soubor <code>rd-vysoky-ujezd-model.json</code>:</p>
+  <input type="file" id="pickfile" accept=".json,application/json">
+  <p style="color:#5a6470">Tip: spusťte <code>python3 -m http.server</code> v této složce a otevřete <code>http://localhost:8000/</code>.</p>
+</div></div>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
